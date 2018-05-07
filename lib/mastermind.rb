@@ -1,124 +1,159 @@
 require 'pry'
-#mastermind.rb
-#puts "\e" how to clear console
-#potentially cross off element from colors array (new copy array with deleted values)
-#pass colors as an array because mutable
-#assignment operator is non-mutable!
-#shovel operator and pop are mutable
+require 'io/console'
 
 class Mastermind
 
-    def initialize()
-      @colors = randomize_colors
-      # p @colors[:"1"]
-    end
+  def initialize
+    @colors = randomize_colors
+    @guesses = 0
+    @start_time
+    @end_time
+  end
 
-    def start
-      print_game_title
-      print_ask_to_play
-      answer = ask_to_play
-      if answer == "p"
-        while print_correctness(play(get_play)) == false
-          print_correctness(play(get_play))
-        end
-      elsif answer == "i"
-        print_instructions
-      elsif answer == "q"
+  # returns an array of random colors to @colors
+  def randomize_colors
+    colors = ["r", "g", "b", "y"]
+    random_colors = []
+    4.times do
+      random_colors << colors.sample
+    end
+    return random_colors
+  end
+
+  def start
+    choice = ""
+    print_game_title
+    choice = get_user_play_choice
+    if choice == "p".downcase # allows for if the user inputs a capital
+      @start_time = Time.now.strftime("%M:%S") # hours and minutes
+      loop do
+      @guesses += 1
+      play
+      end
+    elsif choice == "i".downcase
+      print_instructions
+    elsif choice == "q".downcase
+      quit_game
+    else
+      puts "Error."
+    end
+  end
+
+  def get_user_play_choice
+    user_choice = gets.chomp
+  end
+
+  def get_user_guess
+    valid_guess = false
+    while valid_guess == false
+      user_guess = gets.chomp.chars
+      if user_guess[0] == "q"
+        quit_game
+      elsif user_guess[0] == "c"
+        cheat
+        puts "> "
+      elsif user_guess.length > 4 || user_guess.length < 4
+        puts "Invalid guess. Please guess again: "
+      elsif user_guess.include?(!"rgby")
+        puts "Invalid guess. Please guess again: "
+      else
+        valid_guess = true
+      end
+    end
+    return user_guess
+  end
+
+  def play
+    print_ask_for_guess
+    user_guess = get_user_guess
+    index_total = check_correct_indexes(user_guess)
+
+    user_color_arr = count_colors(user_guess)
+    comp_color_arr = count_colors(@colors)
+    color_total = check_correct_colors(user_color_arr, comp_color_arr)
+    results = [color_total, index_total, user_guess]
+
+    if color_total == 4 && index_total == 4
+      @end_time = Time.now.strftime("%M:%S")
+      time_arr = calc_time_taken
+      print_win(time_arr)
+      choice = get_user_play_choice
+      if choice == "p" || choice == "play"
+        @start_time = Time.now.strftime("%M:%S")
+        start
+      elsif choice == "q" || choice == "quit"
         quit_game
       end
     end
+    print_correct(results)
+  end
 
-    def ask_to_play
+  def count_colors(color_array)
+    r = 0
+    y = 0
+    g = 0
+    b = 0
+    results = []
+    color_array.each do |color|
+      if color == "r"
+        r += 1
+      elsif color == "y"
+        y += 1
+      elsif color == "g"
+        g += 1
+      elsif color == "b"
+        b += 1
+      else
+        puts "Error."
+      end
+    end
+    results += [r, y, g, b]
+    # returns array of correct colors in rygb order
+  end
 
-      user_input = ""
-
-      while user_input != "q".downcase #downcase accounts for capitals
-
-        user_input = gets.chomp
-
-        if user_input == "p".downcase
-          return "p"
-        elsif user_input == "i".downcase
-          return "i"
-        elsif user_input == "q".downcase
-          return "q"
-        else
-          puts "Invalid input. Please try again: "
-        end #end if
-      end #end while
-  end #end ask_to_play
-
-  def play(user_colors)
-
-    correct_indexes = 0
+  # user/comp looks like [1, 1, 2, 0]
+  def check_correct_colors(user, comp)
     correct_colors = 0
-    found = false
-    index_counter = 0
-    color_counter = 0
-    counter = 0
-    modded_user_colors = user_colors.dup
-    p modded_user_colors
 
-    # @colors = hash of correct colors ex: ["g", "b", "y", "r"]
-    # returns the correct number of indexes guessed
-    @colors.each do |key, value|
-
-      # if first value of user_colors = first value of comp generated colors
-      if user_colors[index_counter].to_s == "#{value}".to_s.gsub("^0-9", "") && index_counter < 5
-        correct_indexes += 1
-      elsif user_colors == "c".downcase
-        cheat
-      end
-      index_counter += 1
-
-      # if the value of the hash colors in this iteration is equal to
-      4.times do
-        # if there is a matching user_color in the modded hash, delete it
-        if user_colors[color_counter].to_s == "#{value}".to_s.gsub("^0-9", "")
-          correct_colors += 1
+    4.times do |counter|
+      if user[counter] > 0 && comp[counter] > 0
+        if user[counter] > comp[counter]
+          correct_colors += comp[counter]
+        elsif user[counter] < comp[counter]
+          correct_colors += user[counter]
+        elsif user[counter] == comp[counter]
+          correct_colors += user[counter]
         end
-        color_counter += 1
       end
+      # [1, 1, 1, 0] => user[counter]
+      # [0, 2, 1, 0] => comp[counter]
     end
-    index_counter = 0
-    color_counter = 0
-    return [correct_colors, correct_indexes, user_colors]
+    return correct_colors
+  end
 
-  end # end play
-
-
-  def print_correctness(arr)
-    puts `clear`
-    print arr[2].flatten.to_s.gsub("^0-9", "") + " has " \
-      + arr[0].to_s + " correct colors with " + arr[1].to_s\
-      + " in the correct position(s)\n"
-    if arr[0] = 4 && arr[1] == 4
-      return true
+  # passes in an array of user guess
+  def check_correct_indexes(user_guess)
+    counter = 0
+    correct_indexes = 0
+    4.times do
+      if user_guess[counter] == @colors[counter] # @colors[counter] working as expected
+        correct_indexes += 1
+      end
+      counter += 1
     end
-    return false
+    return correct_indexes
   end
 
   def cheat
-    puts "Answer: " + @colors.to_s
+    puts "Answer is: " + @colors.to_s.gsub("^0-9", "")
   end
 
-  def randomize_colors
-    counter = 1
-    rgby = ["r", "g", "b", "y"]
-    color_hash = {}
-    4.times do
-      color_hash.store(:"#{counter}", rgby.sample)
-      counter += 1
-    end
-    return color_hash
-    #returns a hash of colors
-  end
-
-  def print_prompt
-    puts `clear` #clears the terminal
-    prompt = "I have generated a beginner sequence with four elements made up"\
-      "of (r)ed, (g)reen, (b)lue, and (y)ellow. Use (q)uit at any time to"\
-      "end the game." + "\n" + "What's your guess? "
+  def print_game_title
+    puts `clear`
+    print "Welcome to M@Š†€®m¡ñÐ"
+    print "\n"
+    print "Would you like to (p)lay, read the (i)nstructions, or (q)uit?\n"
+    print "> "
   end
 
   def print_instructions
@@ -126,41 +161,55 @@ class Mastermind
     print instructions =
       "The idea of the game is for one player (the code-breaker) to guess the "\
       "secret code chosen by the computer. The code is a sequence of 4 "\
-      "colored pegs chosen from six colors available. The code-breaker makes "\
+      "colored pegs chosen from six colors available.\nThe code-breaker makes "\
       "a series of pattern guesses - after each guess the code-maker gives "\
       "feedback in the form of 2 numbers, the number of pegs that are of the "\
-      "right color and in the correct position, and the number of pegs that "\
+      "right color and in\nthe correct position, and the number of pegs that "\
       "are of the correct color but not in the correct position - these "\
       "numbers are usually represented by small black and white pegs."
-
-      puts "\nPress the return key to return to home screen: "
-      user_input = gets.chomp
+      print "\nPress return to go back to home screen."
+      input = gets.chomp
       start
-
   end
 
-  def print_ask_to_play
+  def print_ask_for_guess
     puts `clear`
-    print "Would you like to (p)lay, read the (i)nstructions, or (q)uit? "
-  end
-
-  def print_game_title
-    game_title = "Welcome to M@Š†€®m¡ñÐ"
-    puts game_title.dump
-  end
-
-  def get_play
-    puts `clear`
-    puts "Enter a color sequence in the format: rgby"
+    print "I have generated a beginner sequence with four elements made up "\
+    "of: (r)ed, (g)reen, (b)lue, and (y)ellow. Use (q)uit at any time to end "\
+    "the game. What's your guess?\n"
     print "> "
-    user_colors = gets.chomp
-    user_colors = user_colors.chars
+  end
+
+  def print_correct(results)
+    correct_colors = results[0]
+    correct_indexes = results[1]
+    user_guess = results[2].flatten.to_s.gsub("^0-9", "")
+    print user_guess.to_s + " has " + correct_colors.to_s + " of the correct "\
+      "colors with " + correct_indexes.to_s + " in the correct position(s)\n"
+    print "\nYou've taken " + @guesses.to_s + " guess(es)."
+    puts "Press enter to guess again"
+    gets.chomp
+  end
+
+  def print_win(time_arr)
+    puts `clear`
+    puts "Congratulations. You guessed the sequence "\
+      + @colors.to_s.gsub("^0-9", "") + " in " + @guesses.to_s + " guess(es) "\
+      "over " + time_arr[0].abs.to_s + " minutes, " + time_arr[1].abs.to_s + ""\
+      " seconds.\n"
+    puts "Do you want to (p)lay again or (q)uit? "
+  end
+
+  def calc_time_taken
+    # "46:24" "48:17"
+    minutes = @start_time[0..1].to_i - @end_time[0..1].to_i
+    seconds = @start_time[3..4].to_i - @end_time[3..4].to_i
+    return [minutes, seconds]
   end
 
   def quit_game
     puts "Goodbye."
-    sleep(1) #so that the user can see "Goodbye."
     exit
   end
 
-end #end mastermind.rb
+end #end Mastermind
