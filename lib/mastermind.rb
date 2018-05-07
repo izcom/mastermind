@@ -1,5 +1,4 @@
 require 'pry'
-require 'io/console'
 
 class Mastermind
 
@@ -136,7 +135,8 @@ class Mastermind
     counter = 0
     correct_indexes = 0
     4.times do
-      if user_guess[counter] == @colors[counter] # @colors[counter] working as expected
+      # @colors[counter] working as expected
+      if user_guess[counter] == @colors[counter]
         correct_indexes += 1
       end
       counter += 1
@@ -146,6 +146,7 @@ class Mastermind
 
   def cheat
     puts "Answer is: " + @colors.to_s.gsub("^0-9", "")
+    return @colors
   end
 
   def print_game_title
